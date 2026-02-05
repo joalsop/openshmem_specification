@@ -11,7 +11,7 @@ A memory consistency model (MCM) defines what values loads are allowed to return
 
 The C++ memory model is defined axiomatically in the C++ specification. Although many prior works aim to mathematize or improve this formalism, here we simply try to provide sufficient understanding to build upon it with the \openshmem API model.
 
-Under the PL-level C++ memory model, events consist of reads (\textit{R}), writes (\textit{W}), atomic read-modify-writes (\textit{RMW}) perform both a read and write to memory, and fences (\textit{F}). Events that access memory may be atomic or non-atomic. Atomic events are associated with a memory order which can be acquire, release, acquire-release, or relaxed (we leave out consume and sequential consistent memory orders here for simplicity, but this does not impact how the PL-level semantics are extended for the API-level model). The following relations are defined over the events in a candidate execution, and will be used to derive API-level relations in Section~\ref{subsubsec:api_relations}:
+Under the PL-level C++ memory model, events consist of reads (\textit{R}), writes (\textit{W}), atomic read-modify-writes (\textit{RMW}, which perform both a read and write to memory), and fences (\textit{F}). Events that access memory may be atomic or non-atomic. Atomic events are associated with a memory order which can be acquire, release, acquire-release, or relaxed (we leave out consume and sequential consistent memory orders here for simplicity, but this does not impact how the PL-level semantics are extended for the API-level model). The following relations are defined over the events in a candidate execution, and will be used to derive API-level relations in Section~\ref{subsubsec:api_relations}:
 
 \begin{itemize}
     \item \textbf{Sequenced before (\textit{sb}):} Relates memory events from the same thread based on the order they are evaluated (also called program order in some contexts)
@@ -114,23 +114,23 @@ Local completion order relates local observable accesses from a blocking \opensh
 
 Remote delivery order relates accesses separated by an \openshmem fence operation. However, this relation does not establish full connectivity; it only forms a connection between observable accesses to the same PE from operations \textit{hb} ordered before and after the fence, and between \textit{hb} ordered accesses before a fence and observable accesses from operations \textit{hb} ordered after a fence. Specifically, $(A, B) \in rdo$ only if there is an \openshmem fence operation $Fop$ and any of the following conditions are true:
 \begin{itemize}
-    \item $A$ is a memory access that is \textit{hb} ordered before $Fop$, $B$ is an observable access issued by an operation that is \textit{hb} ordered after $Fop$, and the context associated with $Fop$ does NOT have the $OPENSHMEM_CTX_NOSTORE$ option enabled.
+    \item $A$ is a memory access that is \textit{hb} ordered before $Fop$, $B$ is an observable access issued by an operation that is \textit{hb} ordered after $Fop$, and the context associated with $Fop$ does NOT have the $OPENSHMEM\_CTX\_NOSTORE$ option enabled.
     \item $A$ is an observable access issued by a fence-ordered operation (defined below) that is \textit{hb} ordered before $Fop$, $B$ is an observable access issued by an operation that is \textit{hb} ordered after $Fop$, and $A$ and $B$ target the same PE.
 \end{itemize}
 
-\textbf{fence-ordered operations}: blocking or nonblocking put, blocking or nonblocking atomic memory operation, blocking or nonblocking put\_with\_signal.
+\textbf{fence-ordered operations}: blocking or nonblocking put, blocking or nonblocking atomic memory operation, blocking or nonblocking put\_signal.
 
 \subsubsubsection{Remote Completion Order (rco)}
 
 Remote completion order establishes full connectivity between accesses separated by an \openshmem quiet or barrier operation. All thread accesses or observable accesses that are \textit{hb} ordered before the quiet or barrier operation are ordered before all thread accesses or observable accesses that are \textit{hb} ordered after the quiet or barrier operation. Specifically, $(A, B) \in rdo$ only if there is an \openshmem quiet or barrier operation $QBop$ and any of the following conditions are true:
 \begin{itemize}
-    \item $A$ is a memory access that is \textit{hb} ordered before $QBop$, $B$ is an access that is \textit{hb} ordered after $QBop$, and the context associated with $QBop$ does NOT have the $OPENSHMEM_CTX_NOSTORE$ option enabled.
-    \item $A$ is a memory access that is \textit{hb} ordered before $QBop$, $B$ is an observable access issued by an operation that is \textit{hb} ordered after $QBop$, and the context associated with $QBop$ does NOT have the $OPENSHMEM_CTX_NOSTORE$ option enabled.
+    \item $A$ is a memory access that is \textit{hb} ordered before $QBop$, $B$ is an access that is \textit{hb} ordered after $QBop$, and the context associated with $QBop$ does NOT have the $OPENSHMEM\_CTX\_NOSTORE$ option enabled.
+    \item $A$ is a memory access that is \textit{hb} ordered before $QBop$, $B$ is an observable access issued by an operation that is \textit{hb} ordered after $QBop$, and the context associated with $QBop$ does NOT have the $OPENSHMEM\_CTX\_NOSTORE$ option enabled.
     \item $A$ is an observable access issued by an operation that is \textit{hb} ordered before $QBop$ and $B$ is an access that is \textit{hb} ordered after $QBop$.
     \item $A$ is an observable memory access issued by a qb-ordered operation (defined below) that is \textit{hb} ordered before $QBop$ and $B$ is an observable access issued by an operation that is \textit{hb} ordered after $QBop$.
 \end{itemize}
 
-\textbf{qb-ordered operations}: blocking or nonblocking put, nonblocking get, blocking or nonblocking atomic memory operation, blocking or nonblocking put\_with\_signal.
+\textbf{qb-ordered operations}: blocking or nonblocking put, nonblocking get, blocking or nonblocking atomic memory operation, blocking or nonblocking put\_signal.
 
 \subsubsubsection{API Synchronizes-With (asw)}
 
@@ -185,7 +185,7 @@ The following axioms are similarly updated to use \textit{api\_hb} rather than \
     \item $acyclic(api\_hb)$: \textit{hb} cannot have any cycles.
     \item $irreflexive(rf;api\_hb)$: \textit{hb} must be consistent with the \textbf{rf} relation.
     \item $irreflexive((rf^{-1})^{?};mo;rf^?;api\_hb)$: \textit{hb} must be consistent with the \textit{mo} order of writes, as well as any reads that read from writes in mo order (often called coherence requirement).
-    \item $irreflexive(rf;(sb^amo\_op)^? \cup mo;mo;(;sb^{amo\_op})^?;rf^-1 \cup mo;rf;(sb^{amo\_op})^?$ where $sb^{amo\_op}$ relates $sb$ ordered observable accesses issued by the same \openshmem atomic memory operation: The read of an atomic read-modify-write access must always read the last value (in the modification order) written before the write of the read-modify-write access. Similarly, the observable read of an \openshmem atomic memory operation must always read the last value (in the modification order) written before the observable write of the atomic memory operation.
+    \item $irreflexive(rf;(sb^{amo\_op})^? \cup mo;mo;(;sb^{amo\_op})^?;rf^-1 \cup mo;rf;(sb^{amo\_op})^?$ where $sb^{amo\_op}$ relates $sb$ ordered observable accesses issued by the same \openshmem atomic memory operation: The read of an atomic read-modify-write access must always read the last value (in the modification order) written before the write of the read-modify-write access. Similarly, the observable read of an \openshmem atomic memory operation must always read the last value (in the modification order) written before the observable write of the atomic memory operation.
 \end{itemize}
 
 Finally, similar to the C++ memory model, if an API data race exists in a candidate execution that satisfies the above axioms, then the program's behavior is undefined. If an API data race does not exist, then the program's behavior must conform to one of the axiom-satisfying candidate executions.
