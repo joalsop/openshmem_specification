@@ -132,15 +132,15 @@ Remote completion order establishes full connectivity between accesses separated
 
 \textbf{qb-ordered operations}: blocking or nonblocking put, nonblocking get, blocking or nonblocking atomic memory operation, blocking or nonblocking put\_signal.
 
-\subsubsubsection{API Synchronizes-With (asw)}
+\subsubsubsection{API Synchronizes-With (asw)}\label{subsubsubsec:api_relations_asw}
 
 API synchronizes-with is the API-level analog of the PL-level \textit{sw} relation. It relates observable accesses from legally synchronizing \openshmem operations that form a \textit{rf} relationship. Specifically, $(A, B) \in asw$ only if $(A, B) \in rf$ and any of the following are true:
 \begin{itemize}
-    \item $A$ is an observable read or read-modify-write access issued by an \openshmem operation from any of the following categories:
-    atomic memory operations, signaling operations, point-to-point synchronization routines, or distributed locking routines.
-    \item $B$ is an observable write or read-modify-write access issued by an \openshmem operation from any of the following categories:
-    atomic memory operations, signaling operations, point-to-point synchronization routines, or distributed locking routines.
+    \item $A$ is an observable read or read-modify-write access issued by a synchronizing \openshmem operation.
+    \item $B$ is an observable write or read-modify-write access issued by a synchronizing \openshmem operation.
 \end{itemize}
+
+In the above, "synchronizing \openshmem operations" are defined as any operation from the following categories: atomic memory operations, signaling operations, point-to-point synchronization routings, or distributed locking routines.
 
 \subsubsection{Example API Execution}\label{subsubsubsec:api_relations_example}
 
@@ -176,7 +176,7 @@ In addition, an \textbf{API data race} is defined to relate any two accesses $A$
 \begin{itemize}
     \item $A$ and $B$ access the same address on the same PE.
     \item At least one access is a write.
-    \item At least one access is not atomic.
+    \item Both $A$ and $B$ are normal accesses and at least one of them is not atomic, or both $A$ and $B$ are observable memory accesses issued by \openshmem operations and at least one of them is issued by a non-synchronizing \openshmem operation (defined in Section~\ref{subsubsubsec:api_relations_asw}), or one of the accesses is a normal memory access and the other is an observable memory access issued by an \openshmem operation.
     \item $A$ and $B$ are not related by \textit{api\_hb}.
 \end{itemize}
 

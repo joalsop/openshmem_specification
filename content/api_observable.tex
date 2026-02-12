@@ -257,7 +257,7 @@ nelems):
       ST R1 -> dest[i], p
     \end{verbatim}
     \tabularnewline\hline
-\multirow{15}{*}{Point-to-Point \\ Synchronization Routines}
+\multirow{15}{*}{\shortstack[l]{Point-to-Point\\ Synchronization Routines}}
     & \begin{verbatim}shmem_wait_until(ivar, cmp, cmp_value):
   R1 = LD ivar, my_pe
   while !cmp.test(R1, cmp_value):
