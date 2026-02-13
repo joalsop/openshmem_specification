@@ -31,7 +31,7 @@
     \end{verbatim}
     \tabularnewline\cline{2-2}
     & \begin{verbatim}shmem_g(dest, value, pe):
-  return LD value -> dest, pe
+  return LD value
     \end{verbatim}
     \tabularnewline\cline{2-2}
     & \begin{verbatim}shmem_iget(dest, source, dst, sst, nelems, pe):
@@ -63,67 +63,67 @@
     \end{verbatim}
     \tabularnewline\cline{2-2}  
     & \begin{verbatim}shmem_atomic_fetch_inc(dest, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 + 1
   ST R2 -> dest, pe
   return R1
     \end{verbatim}
     \tabularnewline\cline{2-2}      
     & \begin{verbatim}shmem_atomic_inc(dest, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 + 1
   ST R2 -> dest, pe
   return R1
     \end{verbatim}
     \tabularnewline\cline{2-2}  
     & \begin{verbatim}shmem_atomic_fetch_add(dest, value, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 + value
   ST R2 -> dest, pe
   return R1
     \end{verbatim}
     \tabularnewline\cline{2-2}  
     & \begin{verbatim}shmem_atomic_add(dest, value, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 + value
   ST R2 -> dest, pe
     \end{verbatim}
     \tabularnewline\cline{2-2}  
     & \begin{verbatim}shmem_atomic_fetch_and(dest, value, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 & value
   ST R2 -> dest, pe
   return R1
     \end{verbatim}
     \tabularnewline\cline{2-2}      
     & \begin{verbatim}shmem_atomic_and(dest, value, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 & value
   ST R2 -> dest, pe
     \end{verbatim}
     \tabularnewline\cline{2-2}
     & \begin{verbatim}shmem_atomic_fetch_or(dest, value, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 | value
   ST R2 -> dest, pe
   return R1
     \end{verbatim}
     \tabularnewline\cline{2-2}
     & \begin{verbatim}shmem_atomic_or(dest, value, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 | value
   ST R2 -> dest, pe
     \end{verbatim}
     \tabularnewline\cline{2-2}
     & \begin{verbatim}shmem_atomic_fetch_xor(dest, value, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 ^ value
   ST R2 -> dest, pe
   return R1
     \end{verbatim}
     \tabularnewline\cline{2-2}
     & \begin{verbatim}shmem_atomic_xor(dest, value, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 ^ value
   ST R2 -> dest, pe
     \end{verbatim}
@@ -149,35 +149,35 @@ pe):
     \end{verbatim}
     \tabularnewline\cline{2-2}
     & \begin{verbatim}shmem_atomic_fetch_inc_nbi(dest, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 + 1
   ST R2 -> dest, pe
   ST R1 -> fetch, my_pe
     \end{verbatim}
     \tabularnewline\cline{2-2}
     & \begin{verbatim}shmem_atomic_fetch_add_nbi(dest, value, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 + value
   ST R2 -> dest, pe
   ST R1 -> fetch, my_pe
     \end{verbatim}
     \tabularnewline\cline{2-2}
     & \begin{verbatim}shmem_atomic_fetch_and_nbi(dest, value, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 & value
   ST R2 -> dest
   ST R1 -> fetch, my_pe
     \end{verbatim}
     \tabularnewline\cline{2-2}
     & \begin{verbatim}shmem_atomic_fetch_or_nbi(dest, value, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 | value
   ST R2 -> dest
   ST R1 -> fetch, my_pe
     \end{verbatim}
     \tabularnewline\cline{2-2}
     & \begin{verbatim}shmem_atomic_fetch_xor_nbi(dest, value, pe):
-  R1 = 1 + LD dest, pe
+  R1 = LD dest, pe
   R2 = R1 ^ value
   ST R2 -> dest
   ST R1 -> fetch, my_pe

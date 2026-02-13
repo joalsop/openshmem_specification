@@ -75,7 +75,7 @@ Table~\ref{table:api_observable} defines the observable accesses performed for e
     \begin{itemize}
         \item $B$ takes a value derived from $A$ as an operand.
         \item $B$ has a control dependency on the result of $A$ such that $A$'s evaluation determines whether $B$ will occur.
-        \item $B$ has an ordering dependency $A$. This type of dependency currently exists only in put\_signal[\_nbi] where the final store to $sig_addr$ is dependent on all prior observable accesses.
+        \item $B$ has an ordering dependency $A$. This type of dependency currently exists only in put\_signal[\_nbi] where the final store to $sig_addr$ is ordered after all prior observable accesses to source and dest.
     \end{itemize} 
 Many operations have no visible accesses (e.g., memory ordering routines, whose semantics are defined by the API-level relations described in Section~\ref{subsubsec:api_relations}). 
 
@@ -114,7 +114,7 @@ Local completion order relates local observable accesses from a blocking \opensh
 
 Remote delivery order relates accesses separated by an \openshmem fence operation. However, this relation does not establish full connectivity; it only forms a connection between observable accesses to the same PE from operations \textit{hb} ordered before and after the fence, and between \textit{hb} ordered accesses before a fence and observable accesses from operations \textit{hb} ordered after a fence. Specifically, $(A, B) \in rdo$ only if there is an \openshmem fence operation $Fop$ and any of the following conditions are true:
 \begin{itemize}
-    \item $A$ is a memory access that is \textit{hb} ordered before $Fop$, $B$ is an observable access issued by an operation that is \textit{hb} ordered after $Fop$, and the context associated with $Fop$ does NOT have the $OPENSHMEM\_CTX\_NOSTORE$ option enabled.
+    \item $A$ is a memory access that is \textit{hb} ordered before $Fop$, $B$ is an observable access issued by an operation that is \textit{hb} ordered after $Fop$, and the context associated with $Fop$ does NOT have the $SHMEM\_CTX\_NOSTORE$ option enabled.
     \item $A$ is an observable access issued by a fence-ordered operation (defined below) that is \textit{hb} ordered before $Fop$, $B$ is an observable access issued by an operation that is \textit{hb} ordered after $Fop$, and $A$ and $B$ target the same PE.
 \end{itemize}
 
@@ -124,8 +124,8 @@ Remote delivery order relates accesses separated by an \openshmem fence operatio
 
 Remote completion order establishes full connectivity between accesses separated by an \openshmem quiet or barrier operation. All thread accesses or observable accesses that are \textit{hb} ordered before the quiet or barrier operation are ordered before all thread accesses or observable accesses that are \textit{hb} ordered after the quiet or barrier operation. Specifically, $(A, B) \in rdo$ only if there is an \openshmem quiet or barrier operation $QBop$ and any of the following conditions are true:
 \begin{itemize}
-    \item $A$ is a memory access that is \textit{hb} ordered before $QBop$, $B$ is an access that is \textit{hb} ordered after $QBop$, and the context associated with $QBop$ does NOT have the $OPENSHMEM\_CTX\_NOSTORE$ option enabled.
-    \item $A$ is a memory access that is \textit{hb} ordered before $QBop$, $B$ is an observable access issued by an operation that is \textit{hb} ordered after $QBop$, and the context associated with $QBop$ does NOT have the $OPENSHMEM\_CTX\_NOSTORE$ option enabled.
+    \item $A$ is a memory access that is \textit{hb} ordered before $QBop$, $B$ is an access that is \textit{hb} ordered after $QBop$, and the context associated with $QBop$ does NOT have the $SHMEM\_CTX\_NOSTORE$ option enabled.
+    \item $A$ is a memory access that is \textit{hb} ordered before $QBop$, $B$ is an observable access issued by an operation that is \textit{hb} ordered after $QBop$, and the context associated with $QBop$ does NOT have the $SHMEM\_CTX\_NOSTORE$ option enabled.
     \item $A$ is an observable access issued by an operation that is \textit{hb} ordered before $QBop$ and $B$ is an access that is \textit{hb} ordered after $QBop$.
     \item $A$ is an observable memory access issued by a qb-ordered operation (defined below) that is \textit{hb} ordered before $QBop$ and $B$ is an observable access issued by an operation that is \textit{hb} ordered after $QBop$.
 \end{itemize}
@@ -182,9 +182,9 @@ In addition, an \textbf{API data race} is defined to relate any two accesses $A$
 
 The following axioms are similarly updated to use \textit{api\_hb} rather than \textit{hb}, and to extend RMW atomicity to \openshmem atomic memory operations:
 \begin{itemize}
-    \item $acyclic(api\_hb)$: \textit{hb} cannot have any cycles.
-    \item $irreflexive(rf;api\_hb)$: \textit{hb} must be consistent with the \textbf{rf} relation.
-    \item $irreflexive((rf^{-1})^{?};mo;rf^?;api\_hb)$: \textit{hb} must be consistent with the \textit{mo} order of writes, as well as any reads that read from writes in mo order (often called coherence requirement).
+    \item $acyclic(api\_hb)$: \textit{api_hb} cannot have any cycles.
+    \item $irreflexive(rf;api\_hb)$: \textit{api_hb} must be consistent with the \textbf{rf} relation.
+    \item $irreflexive((rf^{-1})^{?};mo;rf^?;api\_hb)$: \textit{api_hb} must be consistent with the \textit{mo} order of writes, as well as any reads that read from writes in mo order (often called coherence requirement).
     \item $irreflexive(rf;(sb^{amo\_op})^? \cup mo;mo;(;sb^{amo\_op})^?;rf^-1 \cup mo;rf;(sb^{amo\_op})^?$ where $sb^{amo\_op}$ relates $sb$ ordered observable accesses issued by the same \openshmem atomic memory operation: The read of an atomic read-modify-write access must always read the last value (in the modification order) written before the write of the read-modify-write access. Similarly, the observable read of an \openshmem atomic memory operation must always read the last value (in the modification order) written before the observable write of the atomic memory operation.
 \end{itemize}
 
