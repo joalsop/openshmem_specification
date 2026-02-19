@@ -1,30 +1,28 @@
 
 To precisely define what behavior the \openshmem interface guarantees for both users and implementers, we formally define an API-level memory model. An API-level model builds upon a programming language-level (PL-level) memory model, and it defines how API operations impact memory. This is useful for determining the ordering and visibility requirements for \openshmem memory accesses when implemented on any device, but it is of particular importance for devices like GPUs that have software managed caches requiring expensive bulk flush or invalidate actions to enforce memory ordering guarantees. Without a precisely specified memory model, API implementers and users may disagree on what behavior is guaranteed by the API, and this can lead to poor performance (too many bulk cache actions) or buggy code (too few bulk cache actions).
 
-Although \openshmem may be implemented in multiple programming languages, this section describes how \openshmem extends the C++ memory consistency model. C++ is chosen as an example because of its generality, and because it forms the basis for common GPU programming languages (CUDA, hip). We describe how the guarantees described here can be adapted for GPU memory models in Section~\ref{subsubsec:api_scoped}.
+This section describes how \openshmem extends the C++ memory consistency model. C++ is chosen as an example because of its generality and ubiquity in the CPU domain, and because it forms the basis for common GPU programming languages (CUDA, hip). Section~\ref{subsubsec:api_pl_baseline} describes the baseline C++ memory model, Sections~\ref{subsubsec:api_model_overview}-\ref{subsubsec:api_integrate} describe how this programming language-level model is extended to provide API-level semantics for \openshmem, and Section~\ref{subsubsec:api_scoped} describes how the guarantees of the API-level model can be adapted for GPU memory models.
 
 \subsubsection{Baseline PL-level Axiomatic Memory Model (C++)}\label{subsubsec:api_pl_baseline}
 
-A memory consistency model (MCM) defines what values loads are allowed to return in a multi-threaded program. One common way to formally specify a MCM is via axioms over relations between events in a dynamic execution. Axiomatic formalization begins by considering all possible “candidate” executions of a parallel program. Loads may return the value of a conflicting store anywhere else in the execution, or the initial memory value at that address (i.e., allowing all possible reorderings). The model then defines relations between accesses in the candidate executions, and using axioms over these relations, defines which executions are legal (hence restricting which reorderings are allowed by the compiler or hardware).
-
-
+A memory consistency model (MCM) defines what values loads are allowed to return in a multi-threaded program. One common way to formally specify a MCM is via axioms over relations between events in a dynamic execution. Axiomatic formalization begins by considering all possible “candidate” executions of a parallel program. Loads may return the value of a conflicting store anywhere else in the execution, or the initial value at that memory location (i.e., allowing all possible reorderings). The model then defines relations between accesses in the candidate executions, and using axioms over these relations, defines which executions are legal (hence restricting which reorderings are allowed by the compiler or hardware).
 
 The C++ memory model is defined axiomatically in the C++ specification. Although many prior works aim to mathematize or improve this formalism, here we simply try to provide sufficient understanding to build upon it with the \openshmem API model.
 
-Under the PL-level C++ memory model, events consist of reads (\textit{R}), writes (\textit{W}), atomic read-modify-writes (\textit{RMW}, which perform both a read and write to memory), and fences (\textit{F}). Events that access memory may be atomic or non-atomic. Atomic events are associated with a memory order which can be acquire, release, acquire-release, or relaxed (we leave out consume and sequential consistent memory orders here for simplicity, but this does not impact how the PL-level semantics are extended for the API-level model). The following relations are defined over the events in a candidate execution, and will be used to derive API-level relations in Section~\ref{subsubsec:api_relations}:
+Under the PL-level C++ memory model, events consist of reads (\textit{R}), writes (\textit{W}), atomic read-modify-writes (\textit{RMW}, which perform both a read and write to memory), and fences (\textit{F}). Events that access memory may be atomic or non-atomic. Atomic events are associated with a memory order which can be acquire, release, acquire-release, or relaxed\footnote{we leave out consume and sequential consistent memory orders here for simplicity, but this does not impact how the PL-level semantics are extended for the API-level model}. These memory orders determine how atomic accesses can legally synchronize (release and acquire are used with the source and destination of a synchronizing access pair, respectively). The following relations are defined over the events in a candidate execution, and will be used to derive API-level relations in Section~\ref{subsubsec:api_relations}:
 
 \begin{itemize}
     \item \textbf{Sequenced before (\textit{sb}):} Relates memory events from the same thread based on the order they are evaluated (also called program order in some contexts)
-    \item \textbf{Modification order (\textit{mo}):} A total ordering between all writes to the same address.
-    \item \textbf{Reads-from (\textit{rf}):} Relates a write \textit{W} and any read \textit{R} to the same address such that \textit{R} returns the value written by \textit{W}.
+    \item \textbf{Modification order (\textit{mo}):} A total ordering between all modifying accesses (writes or read-modify-writes) to the same memory location.
+    \item \textbf{Reads-from (\textit{rf}):} Relates a write \textit{W} and any read \textit{R} to the same memory location such that \textit{R} returns the value written by \textit{W}.
     \item \textbf{Synchronizes-with (\textit{sw}):} Same as \textit{rf}, but also requires that \textit{W} and \textit{R} are atomic, \textit{W} has release or acquire-release memory order, and \textit{R} has acquire or acquire-release memory order (this relation is also called synchronization order in some contexts).
     \item \textbf{Happens-before (\textit{hb}):} Transitive closure of \textit{sw} and \textit{sb}.
 \end{itemize}
 
 Furthermore, a \textbf{data race} is defined as a relation between two accesses $A$ and $B$ where all of the following are true:
 \begin{itemize}
-    \item $A$ and $B$ access the same address.
-    \item At least one access is a write.
+    \item $A$ and $B$ access the same memory location.
+    \item At least one access is a modifying access (write or read-modify-write).
     \item At least one access is not atomic.
     \item $A$ and $B$ are not related by \textit{hb}.
 \end{itemize}
@@ -50,7 +48,7 @@ The \openshmem API-level memory model extends PL-level memory models like C++ to
 To describe the desired \openshmem behavior, we make the following additions to the existing PL-level model:
 
 \begin{enumerate}
-    \item\label{mcmsteps:one} \textbf{PEs and operation events}: Introduce a new event type that corresponds to an API operation and a new address property that specifies the target PE.
+    \item\label{mcmsteps:one} \textbf{PEs and operation events}: Introduce a new event type that corresponds to an API operation and a new memory location property that specifies the target PE.
     \item\label{mcmsteps:two} \textbf{Per-operation observable accesses}: For each operation type, define a set of observable memory accesses (these are not related to the initiating thread by \textit{sb}).
     \item\label{mcmsteps:three} \textbf{API-level relations}: Define new API-level ordering relations over operation events and their observable accesses that will constrain \openshmem memory ordering.
     \item\label{mcmsteps:four} \textbf{Fused collectives}: Fuse matched collective operation calls into a single event.
@@ -63,15 +61,17 @@ After defining how \openshmem extends the C++ memory model, we describe how the 
 
 \subsubsection{PEs and Operation Events}\label{subsubsec:api_pes_operations}
 
-When defining behavior at the \openshmem API level, we must first consider two key differences in program execution relative to a PL-level model. First, \openshmem applications span multiple PEs, each of which has its own local memory space. Therefore, the PL-level definition of memory address is extended to include both the PE-local address and the PE ID. Normal memory accesses can only access addresses on the PE local to the thread that issued it, which is constant for the life of a thread. \openshmem operations may trigger accesses to the local PE’s memory and/or the memory of remote PEs. Dynamic memory accesses in an execution are only considered to access the same address if both the address and PE ID attributes match (impacting the definitions of of \textit{mo} and \textit{rf}).
+When defining behavior at the \openshmem API level, we must first consider two key differences in program execution relative to a PL-level model. First, \openshmem applications span multiple PEs, each of which has its own local memory space. Therefore, the PL-level definition of memory location is extended to include both the PE-local memory address and the PE ID. Normal memory accesses can only access memory locations on the local PE, which is constant for the life of a thread. \openshmem operations may trigger accesses to the local PE’s memory and/or the memory of remote PEs. Dynamic memory accesses in an execution are only considered to access the same memory location if both the local memory address and PE ID attributes match (impacting the definitions of of \textit{mo} and \textit{rf}).
 
 Second, since the \openshmem API does not define the underlying PL-level implementation, API operations do not resolve to a function consisting of PL-level events. Thus, these operations must be treated as a new type of primitive in the API-level memory model: the operation event. An operation event specifies its type, and each type defines the set of minimum observable accesses triggered by the operation (described next). Operation events participate in \textit{sb} and derived relations, similar to normal thread access events. Although operation events may be associated with separate memory access events (see Section~\ref{subsubsec:api_observable}), the operation events themselves do not participate directly in access-based relations like \textit{mo}, \textit{rf}, and \textit{sw}.
 
 \subsubsection{Per-Operation Observable Accesses}\label{subsubsec:api_observable}
 
-For the purposes of the API memory model, each \openshmem operation type defines the minimum set of observable memory accesses performed by the operation. These accesses are considered to be "issued" by the associated. These accesses must occur as part of the operation, however there is no guarantee that they will be executed by the initiating thread, or that they will be the only accesses performed by the API operation implementation. Observable accesses have the same semantics as normal accesses and take part in the same relations, with one exception: there is no \textit{sb} relationship between observable accesses and the initiating thread of an API operation. Accesses performed by an implementation that are not included in the observable set must not modify data that may be observed from application code external to \openshmem operation implementations. 
+For the purposes of the API memory model, each \openshmem operation type defines the minimum set of observable memory accesses performed by the operation. These accesses are considered to be ``issued'' by the associated operation. These accesses must occur as part of the operation, however the API-level model places no constraints on the thread that executes observable accesses (i.e., they may or may not be executed by the initiating thread), and it does not prevent an implementation from performing other (non-observable) accesses. Observable accesses have the same semantics as normal accesses and take part in the same relations, with one exception: there is no \textit{sb} relationship between observable accesses of an API operation event and any other event issued by the same thread, except as defined later in Section~\ref{subsubsec:api_relations}. 
+Note, however, that the operation event that issues these observable accesses \textit{does} form an \textit{sb} relationship with other events issued by the initiating thread.
+In addition, accesses performed by an implementation that are not included in the observable set must not modify data that may be observed from application code external to \openshmem operation implementations. 
 
-Table~\ref{table:api_observable} defines the observable accesses performed for each \openshmem operation. Each access denotes the address as well as the PE it targets ($my\_pe$ refers to the PE of the initiating thread). In many cases, we also show control and compute pseudocode to define which addresses are accessed, which values are stored, and which values must eventually be loaded\footnote{We use pseudocode rather than C++ here because it allows to clearly specify where memory accesses are required.}. However, this single-threaded control flow does not constrain the actual implementation and does not necessarily imply a total \textit{sb} ordering between observable accesses. Within an operation, \textit{sb} is defined to exist only between observable accesses when there is a true control or data dependency between two accesses. Specifically, $(A, B) \in sb$ only if $A$ and $B$ are observable accesses of the same operation and one of the following is true:
+Table~\ref{table:api_observable} defines the observable accesses performed for each \openshmem operation. Each access denotes the memory location as well as the PE it targets ($my\_pe$ refers to the PE of the initiating thread). In many cases, we also show control and compute pseudocode to define which memory locations are accessed, which values are stored, and which values must eventually be loaded\footnote{We use pseudocode rather than C++ here because it allows to clearly specify where memory accesses are required.}. However, this single-threaded control flow does not constrain the actual implementation and does not necessarily imply a total \textit{sb} ordering between observable accesses. Within an operation, \textit{sb} is defined to exist only between observable accesses when there is a true control or data dependency between two accesses. Specifically, $(A, B) \in sb$ only if $A$ and $B$ are observable accesses of the same operation and one of the following is true:
     \begin{itemize}
         \item $B$ takes a value derived from $A$ as an operand.
         \item $B$ has a control dependency on the result of $A$ such that $A$'s evaluation determines whether $B$ will occur.
@@ -122,7 +122,7 @@ Remote delivery order relates accesses separated by an \openshmem fence operatio
 
 \subsubsubsection{Remote Completion Order (rco)}
 
-Remote completion order establishes full connectivity between accesses separated by an \openshmem quiet or barrier operation. All thread accesses or observable accesses that are \textit{hb} ordered before the quiet or barrier operation are ordered before all thread accesses or observable accesses that are \textit{hb} ordered after the quiet or barrier operation. Specifically, $(A, B) \in rdo$ only if there is an \openshmem quiet or barrier operation $QBop$ and any of the following conditions are true:
+Remote completion order establishes full connectivity between accesses separated by an \openshmem quiet or barrier operation. All thread accesses or observable accesses that are \textit{hb} ordered before the quiet or barrier operation are ordered before all thread accesses or observable accesses that are \textit{hb} ordered after the quiet or barrier operation. Specifically, $(A, B) \in rco$ only if there is an \openshmem quiet or barrier operation $QBop$ and any of the following conditions are true:
 \begin{itemize}
     \item $A$ is a memory access that is \textit{hb} ordered before $QBop$, $B$ is an access that is \textit{hb} ordered after $QBop$, and the context associated with $QBop$ does NOT have the $SHMEM\_CTX\_NOSTORE$ option enabled.
     \item $A$ is a memory access that is \textit{hb} ordered before $QBop$, $B$ is an observable access issued by an operation that is \textit{hb} ordered after $QBop$, and the context associated with $QBop$ does NOT have the $SHMEM\_CTX\_NOSTORE$ option enabled.
@@ -145,15 +145,15 @@ In the above, "synchronizing \openshmem operations" are defined as any operation
 \subsubsection{Example API Execution}\label{subsubsubsec:api_relations_example}
 
 \begin{figure}[h]
-\includegraphics[width=0.75\textwidth]{figures/api_relations.png}
+\includegraphics[width=0.75\textwidth]{figures/api_relations_v2.png}
 \centering
-\caption{Example \openshmem code execution depicting observable accesses, API-level relations, and fused collective.}
+\caption{Example \openshmem code execution depicting observable accesses, example API-level relations, and a fused barrier collective operation event.}
 \label{fig:api_execution}
 \end{figure}
 
 Figure~\ref{fig:api_execution} illustrates how the above concepts are applied in an example \openshmem code execution. \openshmem operations are denoted by rounded boxes, and their observable accesses are shown in dotted square boxes. 
 Matched barrier calls from each PE are fused into a single operation event.
-Operations are ordered within the calling thread by \textit{sb}, but their observable accesses are constrained only by the added API relations (in addition to \textit{sb} orderings within the operation): 
+Operations are ordered within the calling thread by \textit{sb}, but their observable accesses are constrained only by the added API relations, described below (in addition to \textit{sb} orderings within the operation): 
 \begin{itemize}
 \item \textit{ilv} orders the store of $a$ in PE0 (and all prior hb-ordered accesses) with the load of $a$ from the put operation.
 \item \textit{lco} orders the load of $a$ in PE1 (and all subsequent hb-ordered accesses) with the load of $b$ from the (blocking) wait\_until operation.
@@ -161,7 +161,7 @@ Operations are ordered within the calling thread by \textit{sb}, but their obser
 \item \textit{rco} orders all \textit{hb} ordered accesses and the accesses of \textit{hb} ordered \openshmem operations before and after the fused barrier event spanning PE0 and PE1.
 \item \textit{asw} orders the store of $b$ from the atomic\_set operation in PE0 with the consuming (\textit{rf} related) load of $b$ from the wait\_until operation in PE1.
 \end{itemize}
-
+Note that~\ref{fig:api_execution} depicts only a representative sample of API relations, since an exhaustive depiction would be cluttered.
 
 \subsubsection{Updating the PL-Level Model to an API-Level Model}\label{subsubsec:api_integrate}
 
@@ -174,7 +174,7 @@ We first define a new relation, API happens-before (\textit{api\_hb}), to be the
 
 In addition, an \textbf{API data race} is defined to relate any two accesses $A$ and $B$ where all of the following are true:
 \begin{itemize}
-    \item $A$ and $B$ access the same address on the same PE.
+    \item $A$ and $B$ access the same memory location on the same PE.
     \item At least one access is a write.
     \item Both $A$ and $B$ are normal accesses and at least one of them is not atomic, or both $A$ and $B$ are observable memory accesses issued by \openshmem operations and at least one of them is issued by a non-synchronizing \openshmem operation (defined in Section~\ref{subsubsubsec:api_relations_asw}), or one of the accesses is a normal memory access and the other is an observable memory access issued by an \openshmem operation.
     \item $A$ and $B$ are not related by \textit{api\_hb}.
@@ -182,9 +182,9 @@ In addition, an \textbf{API data race} is defined to relate any two accesses $A$
 
 The following axioms are similarly updated to use \textit{api\_hb} rather than \textit{hb}, and to extend RMW atomicity to \openshmem atomic memory operations:
 \begin{itemize}
-    \item $acyclic(api\_hb)$: \textit{api_hb} cannot have any cycles.
-    \item $irreflexive(rf;api\_hb)$: \textit{api_hb} must be consistent with the \textbf{rf} relation.
-    \item $irreflexive((rf^{-1})^{?};mo;rf^?;api\_hb)$: \textit{api_hb} must be consistent with the \textit{mo} order of writes, as well as any reads that read from writes in mo order (often called coherence requirement).
+    \item $acyclic(api\_hb)$: \textit{api\_hb} cannot have any cycles.
+    \item $irreflexive(rf;api\_hb)$: \textit{api\_hb} must be consistent with the \textbf{rf} relation.
+    \item $irreflexive((rf^{-1})^{?};mo;rf^?;api\_hb)$: \textit{api\_hb} must be consistent with the \textit{mo} order of writes, as well as any reads that read from writes in mo order (often called coherence requirement).
     \item $irreflexive(rf;(sb^{amo\_op})^? \cup mo;mo;(;sb^{amo\_op})^?;rf^-1 \cup mo;rf;(sb^{amo\_op})^?$ where $sb^{amo\_op}$ relates $sb$ ordered observable accesses issued by the same \openshmem atomic memory operation: The read of an atomic read-modify-write access must always read the last value (in the modification order) written before the write of the read-modify-write access. Similarly, the observable read of an \openshmem atomic memory operation must always read the last value (in the modification order) written before the observable write of the atomic memory operation.
 \end{itemize}
 
