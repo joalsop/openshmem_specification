@@ -30,8 +30,8 @@
     ST R1 -> dest[i], my_pe
     \end{verbatim}
     \tabularnewline\cline{2-2}
-    & \begin{verbatim}shmem_g(dest, value, pe):
-  return LD value
+    & \begin{verbatim}shmem_g(source, pe):
+  return LD source
     \end{verbatim}
     \tabularnewline\cline{2-2}
     & \begin{verbatim}shmem_iget(dest, source, dst, sst, nelems, pe):
@@ -56,7 +56,7 @@
   return R1
     \end{verbatim}
     \tabularnewline\cline{2-2}
-    & \begin{verbatim}shmem_atomic_swap(dest, cond, value, pe):
+    & \begin{verbatim}shmem_atomic_swap(dest, value, pe):
   R1 = LD dest, pe
   ST value -> dest, pe
   return R1
@@ -141,7 +141,7 @@ value, pe):
   ST R1 -> fetch, my_pe
     \end{verbatim}
     \tabularnewline\cline{2-2}
-    & \begin{verbatim}shmem_atomic_swap_nbi(fetch, dest, cond, value, 
+    & \begin{verbatim}shmem_atomic_swap_nbi(fetch, dest, value, 
 pe):
   R1 = LD dest, pe
   ST value -> dest, pe
