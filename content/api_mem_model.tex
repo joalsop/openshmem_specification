@@ -38,56 +38,65 @@ Although the axiomatic model places no requirements on when each event must upda
 
 Finally, the C11 specification states that, if a data race exists in a candidate execution that satisfies the above axioms, then the program's behavior is undefined. If a data race does not exist, then the program's behavior must conform to one of the conforming candidate executions.
 
+\begin{description}
 \apinotes{Consume and sequential consistent memory orders are omitted from the above formalism for simplicity, but this does not impact how the PL-level semantics are extended for the API-level model.
 Also, instead of the verbose prose axioms defined in the C11 specification, the C11 axioms are expressed above using the more concise (and equivalent) representation outlined by Batty et al. in "Overhauling SC atomics in C11 and OpenCL" (Symposium on the Principles of Programming Languages, 2016).}
+\end{description}
 
 
 \subsubsection{API-Level Memory Model Overview}\label{subsubsec:api_model_overview}
 
-The \openshmem API-level memory model extends PL-level memory models like C11 to define how \openshmem operations interact with memory. While PL-level models operate on fine-grain loads, stores, and fences, the API-level memory model must additionally operate on coarse-grain API operations like get, \FUNC{put}, barrier, etc. that can execute asynchronously and involve multiple \ac{PE}s.
+The \openshmem API-level memory model extends PL-level memory models like C11 to define how \openshmem operations interact with memory. PL-level models use acquire and release semantics to establish ordering relations between fine-grain loads, stores, and fences. The API-level memory model must additionally operate on coarse-grain API operations like \GET{}, \PUT{}, barrier, etc. that can execute asynchronously and involve multiple \acp{PE}.
+Rather than defining allowed behavior by leveraging PL-level events and relations, we can more flexibly capture the higher level ordering requirements of \openshmem by defining new events and ordering relations. These can then be lowered to PL-level relations transparently to the programmer, enabling a wide range of backend implementations. We formalize allowed behavior by extending the axiomatic PL-level memory model to incorporate these new events and relations.
 
 To describe the desired \openshmem behavior, the API-level memory model makes the following additions to the existing PL-level model:
 
 \begin{enumerate}
-    \item\label{mcmsteps:one} \textbf{\ac{PE}s and operation events}: Introduce a new event type that corresponds to an API operation and a new memory location property that specifies the target \ac{PE}.
-    \item\label{mcmsteps:two} \textbf{Per-operation observable accesses}: For each operation type, define a set of observable memory accesses (these are not related to the initiating thread by \relSB{}).
-    \item\label{mcmsteps:three} \textbf{API-level relations}: Define new API-level ordering relations over operation events and their observable accesses that will constrain \openshmem memory ordering.
-    \item\label{mcmsteps:four} \textbf{Fused collectives}: Fuse matched collective operation calls into a single event.
-    \item\label{mcmsteps:five} \textbf{Updated relations, axioms}: Update PL-level axioms to incorporate new events and relations.
+	\item\label{mcmsteps:one} \textbf{\acp{PE} and operation events}: Section~\ref{subsubsec:api_pes_operations} introduces a new event type that corresponds to an API operation and a new memory location property that specifies the target \ac{PE}. This provides a basis for operation-level semantics across multiple \ac{PE} memories.
+	\item\label{mcmsteps:two} \textbf{Per-operation observable accesses}: For each operation type, Section~\ref{subsubsec:api_observable} defines a set of observable memory accesses (these are not related to the initiating thread by \relSB{}). This enables asynchrony since a thread can continue execution while observable accesses execute in the background.
+	\item\label{mcmsteps:four} \textbf{Fused collectives}: Section~\ref{subsubsec:api_fused} fuses matched collective operation calls into a single event. This supports multi-PE collective operations and establishes ordering across \acp{PE} even when there are no observable accesses.
+	\item\label{mcmsteps:three} \textbf{API-level relations}: Section~\ref{subsubsec:api_relations} defines new API-level ordering relations over operation events and their observable accesses that will constrain \openshmem memory ordering. This allows the programmer to explicitly enforce ordering of asynchronous operations using the ordering and synchronization operations provided by \openshmem. These relations are illustrated in Section~\ref{subsubsec:api_relations_example}.
+	\item\label{mcmsteps:five} \textbf{Updated relations, axioms}: Section~\ref{subsubsec:api_integrate} updates the PL-level memory model axioms to incorporate these new events and relations. By extending existing relations and axioms (e.g., happens-before, data races) for the API level, we establish a memory model that formalizes \openshmem ordering requirements.
 \end{enumerate}
-
-Each of the above steps adds a piece of required support. \ref{mcmsteps:one} provides a basis for operation-level semantics across multiple \ac{PE} memories. \ref{mcmsteps:two} enables asynchrony since a thread can continue execution while observable accesses execute in the background. \ref{mcmsteps:three} allows the programmer to explicitly enforce ordering of asynchronous operations using the ordering and synchronization operations provided by \openshmem. \ref{mcmsteps:four} Supports multi-PE collective operations and establishes ordering across \ac{PE}s even when there are no observable accesses. \ref{mcmsteps:five} formally updates the PL-level axioms to establish a complete API-level memory model.
 
 After defining how \openshmem extends the C11 memory model, Section~\ref{subsubsec:api_scoped} describes how the addition of scoped synchronization in GPU memory models impacts the API-level model.
 
 \subsubsection{PEs and Operation Events}\label{subsubsec:api_pes_operations}
 
-When defining behavior at the \openshmem API level, there are two key differences in program execution relative to a PL-level model. First, \openshmem applications span multiple \ac{PE}s, each of which has its own local memory space. Therefore, the PL-level definition of memory location is extended to include both the \ac{PE}-local memory address and the \ac{PE} ID. Normal memory accesses can access memory locations on the local \ac{PE}, or on a remote \ac{PE} if \FUNC{shmem\_ptr} is used. \openshmem operations may trigger accesses to the local \ac{PE}’s memory and/or the memory of remote \ac{PE}s. Dynamic memory accesses in an execution are only considered to access the same memory location if both the local memory address and \ac{PE} ID attributes match (impacting the definitions of of \relMO{} and \relRF{}).
+When defining behavior at the \openshmem API level, there are two key differences in program representation relative to a PL-level program. First, \openshmem applications span multiple \acp{PE}, each of which has its own local memory space. Therefore, the PL-level definition of memory location is extended to include both the \ac{PE}-local memory address and the \ac{PE} ID. Normal memory accesses can access memory locations on the local \ac{PE}, or on a remote \ac{PE} if \FUNC{shmem\_ptr} is used. \openshmem operations may trigger accesses to the local \ac{PE}’s memory and/or the memory of remote \acp{PE}. Dynamic memory accesses in an execution are only considered to access the same memory location if both the local memory address and \ac{PE} ID attributes match (impacting the definitions of of \relMO{} and \relRF{}).
 
 Second, since the \openshmem API does not define the underlying PL-level implementation, API operations do not resolve to a function consisting of PL-level events. Thus, these operations must be treated as a new type of primitive in the API-level memory model: the operation event. An operation event specifies its type, and each type defines the set of minimum observable accesses triggered by the operation (described next). Operation events participate in \relSB{} and derived relations, similar to normal thread access events. Although operation events may be associated with separate memory access events (see Section~\ref{subsubsec:api_observable}), the operation events themselves do not participate directly in access-based relations like \relMO{}, \relRF{}, and \relSW{}.
 
 \subsubsection{Per-Operation Observable Accesses}\label{subsubsec:api_observable}
 
-For the purposes of the API memory model, each \openshmem operation type defines the minimum set of observable memory accesses performed by the operation. These accesses are considered to be ``issued'' by the associated operation. These accesses must occur as part of the operation, however the API-level model places no constraints on the thread that executes observable accesses (i.e., they may or may not be executed by the initiating thread), and it does not prevent an implementation from performing other (non-observable) accesses. Observable accesses have the same semantics as normal accesses and take part in the same relations, with one exception: there is no \relSB{} relationship between observable accesses of an API operation event and any other event issued by the same thread, except as defined later in Section~\ref{subsubsec:api_relations}. 
-Note, however, that the operation event that issues these observable accesses \textit{does} form an \relSB{} relationship with other events issued by the initiating thread.
-In addition, accesses performed by an implementation that are not included in the observable set must not modify data that may be observed from application code external to \openshmem operation implementations. 
+For the purposes of the API memory model, each \openshmem operation type defines the minimum set of observable memory accesses performed by the operation. These accesses are considered to be ``issued'' by the associated operation. These accesses must occur as part of the operation, however the API-level model places no constraints on the thread that executes observable accesses (i.e., they may or may not be executed by the initiating thread), and it does not prevent an implementation from performing other accesses (e.g., for implementation-internal synchronization, buffering, etc. -- although data accessed in this way should never be accessed by code external to the implementation.) 
+Observable accesses have the same semantics as normal accesses and take part in the same relations, with two exceptions: 
+\begin{enumerate}
+  \item There is no \relSB{} relationship between observable accesses issued by an API operation and any other event in the thread that initiated the operation. Instead, Section~\ref{subsubsec:api_relations} defines the relations that constrain ordering at the API level. Note, however, that the operation event that issues these observable accesses \textit{does} form a \relSB{} relationship with other events issued by the initiating thread.
+  \item There are no synchronization semantics (atomic, acquire/release ordering) associated with observable accesses. Although the accesses may be lowered to PL-level accesses with these semantics, at the API level, ordering relations and data race conditions are defined a the level of the operation that issues them (see Sections~\ref{subsubsec:api_relations} and~\ref{subsubsec:api_integration}, respectively.)
+\end{enumerate}
+%In addition, accesses performed by an implementation that are not included in the observable set must not modify data that may be observed from application code external to \openshmem operation implementations. 
 
-Table~\ref{table:api_observable} defines the observable accesses performed for each \openshmem operation. Each access denotes the memory location as well as the \ac{PE} it targets ($my\_pe$ refers to the \ac{PE} of the initiating thread). In many cases, control and compute pseudocode are included to define which memory locations are accessed, which values are stored, and which values must eventually be loaded (pseudocode rather than C11 is used here because it allows clearer specification of where memory accesses are required.) However, this single-threaded control flow does not constrain the actual implementation and does not necessarily imply a total \relSB{} ordering between observable accesses. Within an operation, \relSB{} is defined to exist only between observable accesses when there is a true control or data dependency between two accesses. Specifically, $(A, B) \in sb$ only if $A$ and $B$ are observable accesses of the same operation and one of the following is true:
+Table~\ref{table:api_observable} defines the observable accesses performed for each \openshmem operation. Each access denotes the memory location as well as the \ac{PE} it targets ($my\_pe$ refers to the \ac{PE} of the initiating thread). 
+In many cases, control and compute pseudocode are included to define which memory locations are accessed, which values are stored, and which values must eventually be loaded (pseudocode rather than C11 is used here because it allows clearer specification of where memory accesses are required.) 
+However, this single-threaded control flow does not constrain the actual implementation and does not necessarily imply a total \relSB{} ordering between observable accesses. Within an operation, \relSB{} is defined to exist only between observable accesses when there is a true control or data dependency between two accesses (i.e., no \relSB{} relation across independent iterations of a loop). 
+Specifically, $(A, B) \in sb$ only if $A$ and $B$ are observable accesses issued by the same operation and one of the following is true:
     \begin{itemize}
         \item $B$ takes a value derived from $A$ as an operand.
         \item $B$ has a control dependency on the result of $A$ such that $A$'s evaluation determines whether $B$ will occur.
-	\item $B$ has an ordering dependency $A$. This type of dependency currently exists only in \FUNC{put\_signal[\_nbi]} where the final store to $sig\_addr$ is ordered after all prior observable accesses to source and dest.
+	\item $B$ has an ordering dependency $A$. This type of dependency currently exists only in blocking and non-blocking \emph{put-with-signal} operations where the final store to $sig\_addr$ is ordered after all prior observable accesses to source and dest.
     \end{itemize} 
 Many operations have no visible accesses (e.g., memory ordering routines, whose semantics are defined by the API-level relations described in Section~\ref{subsubsec:api_relations}). 
+In addition, synchronization semantics for observable accesses in the API model are defined at a higher level than in the PL model. Rather than associating atomic semantics and acquire/release ordering for each observable accesses that may be involved in synchronization, we instead associate semantics at the level of the issuing operation. Specifically, API-level relations are defined based on
 
 \input{content/api_observable}
 
 \subsubsection{Fused Collectives}\label{subsubsec:api_fused}
 
-\openshmem defines multiple collective operations that synchronize across multiple \ac{PE}s in a team, in some cases without any observable accesses to memory (e.g., as is the case with barrier). 
+\openshmem defines multiple collective operations that synchronize across multiple \acp{PE} in a team, in some cases without any observable accesses to memory (e.g., as is the case with barrier). 
 There are multiple requirements on the use of these operations. In particular, each dynamic call to a collective operation must be paired with a matching call from every other \ac{PE} in the team.
 The API-level memory model fuses these matching calls into a single event in the candidate execution. 
-This fused operation and the associated observable accesses (if any) are considered to be executed collectively by all nodes in the synchronizing set of \ac{PE}s, allowing us to establish ordering relations across these \ac{PE}s (defined in Section~\ref{subsubsec:api_relations}).
+This fused operation and the associated observable accesses (if any) are considered to be executed collectively by all nodes in the synchronizing set of \acp{PE}, allowing us to establish ordering relations across these \acp{PE} (defined in Section~\ref{subsubsec:api_relations}).
 This does not mean the observable accesses must occur atomically, and it does not constrain how the operation is implemented (i.e., any thread or \ac{PE} in the team may perform each observable access).
 
 \subsubsection{API-Level Relations}\label{subsubsec:api_relations}
@@ -97,14 +106,14 @@ Section~\ref{subsubsec:api_observable} details how operations trigger memory acc
 
 
 \textbf{Implicit Local Visibility (ilv)}:
-\relILV{} relates local observable accesses from any \openshmem operation and prior hb-ordered memory accesses from the initiating \ac{PE}. This ensures, for example, that a \FUNC{put} operation will load an up-to-date version of data from the source buffer. Specifically, $(A, B) \in ilv$ only if all of the following are true:
+\relILV{} relates local observable accesses from any \openshmem operation and prior hb-ordered memory accesses from the initiating \ac{PE}. This ensures, for example, that a \PUT{} operation will load an up-to-date version of data from the source buffer. Specifically, $(A, B) \in ilv$ only if all of the following are true:
 \begin{itemize}
     \item $A$ is \relHB{} ordered before the operation event that issues $B$.
     \item $A$ and $B$ target the same \ac{PE} (the \ac{PE} of the caller thread).
 \end{itemize}
 
 \textbf{Local Completion Order (lco)}:
-\relLCO{} relates local observable accesses from a blocking \openshmem operation and subsequent \relHB{} ordered accesses and operations from the initiating \ac{PE}. This ensures, for example, that a blocking \FUNC{put} completes its accesses to the source buffer before a subsequent store from the initiating thread overwrites the data. Specifically, $(A, B) \in lco$ only if all of the following are true:
+\relLCO{} relates local observable accesses from a blocking \openshmem operation and subsequent \relHB{} ordered accesses and operations from the initiating \ac{PE}. This ensures, for example, that a blocking \PUT{} completes its accesses to the source buffer before a subsequent store from the initiating thread overwrites the data. Specifically, $(A, B) \in lco$ only if all of the following are true:
 \begin{itemize}
     \item $A$ is an observable access issued from a blocking operation event (i.e., an operation that does not have nbi in its name).
     \item $A$ targets the \ac{PE} of the operation event that issues it.
@@ -118,7 +127,7 @@ Section~\ref{subsubsec:api_observable} details how operations trigger memory acc
     \item $A$ is an observable access issued by a fence-ordered operation (defined below) that is \relHB{} ordered before $Fop$, $B$ is an observable access issued by an operation that is \relHB{} ordered after $Fop$, and $A$ and $B$ target the same \ac{PE}.
 \end{itemize}
 
-In the above, "fence-ordered operations" are defined as blocking or nonblocking \FUNC{put}, blocking or nonblocking \ac{AMO}, and blocking or nonblocking \FUNC{put\_signal} operations.
+In the above, "fence-ordered operations" are defined as blocking or nonblocking \PUT{}, blocking or nonblocking \ac{AMO}, and blocking or nonblocking \FUNC{put\_signal} operations.
 
 \textbf{Remote Completion Order (rco)}:
 \relRCO{} establishes full connectivity between accesses separated by an \openshmem quiet or barrier operation. All thread accesses or observable accesses that are \relHB{} ordered before the quiet or barrier operation are ordered before all thread accesses or observable accesses that are \relHB{} ordered after the quiet or barrier operation. Specifically, $(A, B) \in rco$ only if there is an \openshmem quiet or barrier operation $QBop$ and any of the following conditions are true:
@@ -129,7 +138,7 @@ In the above, "fence-ordered operations" are defined as blocking or nonblocking 
     \item $A$ is an observable memory access issued by a qb-ordered operation (defined below) that is \relHB{} ordered before $QBop$ and $B$ is an observable access issued by an operation that is \relHB{} ordered after $QBop$.
 \end{itemize}
 
-In the above, "qb-ordered operations" are defined as blocking or nonblocking \FUNC{put}, nonblocking get, blocking or nonblocking \ac{AMO}, and blocking or nonblocking \FUNC{put\_signal} operations.
+In the above, "qb-ordered operations" are defined as blocking or nonblocking \PUT{}, nonblocking \GET{}, blocking or nonblocking \ac{AMO}, and blocking or nonblocking \emph{put-with-signal} operations.
 
 \textbf{API Synchronizes-With (asw)}:
 \relASW{} is the API-level analog of the PL-level \relSW{} relation. It relates observable accesses from legally synchronizing \openshmem operations that form a \relRF{} relationship. Specifically, $(A, B) \in asw$ only if $(A, B) \in rf$ and any of the following are true:
@@ -153,9 +162,9 @@ Figure~\ref{fig:api_execution} illustrates how the above concepts are applied in
 Matched barrier calls from each \ac{PE} are fused into a single operation event.
 Operations are ordered within the calling thread by \relSB{}, but their observable accesses are constrained only by the added API relations, described below (in addition to \relSB{} orderings within the operation): 
 \begin{itemize}
-\item \relILV{} orders the store of $a$ in PE0 (and all prior \relHB{}-ordered accesses) with the load of $a$ from the \FUNC{put} operation.
+\item \relILV{} orders the store of $a$ in PE0 (and all prior \relHB{}-ordered accesses) with the load of $a$ from the \PUT{} operation.
 \item \relLCO{} orders the load of $a$ in PE1 (and all subsequent hb-ordered accesses) with the load of $b$ from the (blocking) \FUNC{wait\_until} operation.
-\item \relRDO{} orders the bulk store of $a$ from the \FUNC{put} operation in PE0 with the store of $b$ from the fence-separated \FUNC{atomic\_set} operation.
+\item \relRDO{} orders the bulk store of $a$ from the \PUT{} operation in PE0 with the store of $b$ from the fence-separated \FUNC{atomic\_set} operation.
 \item \relRCO{} orders all \relHB{} ordered accesses and the accesses of \relHB{} ordered \openshmem operations before and after the fused barrier event spanning PE0 and PE1.
 \item \relASW{} orders the store of $b$ from the \FUNC{atomic\_set} operation in PE0 with the consuming (\relRF{} related) load of $b$ from the \FUNC{wait\_until} operation in PE1.
 \end{itemize}
