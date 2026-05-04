@@ -56,7 +56,7 @@ To describe the desired \openshmem behavior, the API-level memory model makes th
 	\item\label{mcmsteps:two} \textbf{Per-operation observable accesses}: For each operation type, Section~\ref{subsubsec:api_observable} defines a set of observable memory accesses (these are not related to the initiating thread by \relSB{}). This enables asynchrony since a thread can continue execution while observable accesses execute in the background.
 	\item\label{mcmsteps:four} \textbf{Fused collectives}: Section~\ref{subsubsec:api_fused} fuses matched collective operation calls into a single event. This supports multi-PE collective operations and establishes ordering across \acp{PE} even when there are no observable accesses.
 	\item\label{mcmsteps:three} \textbf{API-level relations}: Section~\ref{subsubsec:api_relations} defines new API-level ordering relations over operation events and their observable accesses that will constrain \openshmem memory ordering. This allows the programmer to explicitly enforce ordering of asynchronous operations using the ordering and synchronization operations provided by \openshmem. These relations are illustrated in Section~\ref{subsubsec:api_relations_example}.
-	\item\label{mcmsteps:five} \textbf{Updated relations, axioms}: Section~\ref{subsubsec:api_integrate} updates the PL-level memory model axioms to incorporate these new events and relations. By extending existing relations and axioms (e.g., happens-before, data races) for the API level, we establish a memory model that formalizes \openshmem ordering requirements.
+	\item\label{mcmsteps:five} \textbf{Updated relations, axioms}: Section~\ref{subsubsec:api_integrate} updates the PL-level memory model axioms to incorporate these new events and relations. By extending existing relations and axioms (e.g., \relHB{}, data races) for the API level, we establish a memory model that formalizes \openshmem ordering requirements.
 \end{enumerate}
 
 After defining how \openshmem extends the C11 memory model, Section~\ref{subsubsec:api_scoped} describes how the addition of scoped synchronization in GPU memory models impacts the API-level model.
@@ -101,9 +101,24 @@ This does not mean the observable accesses must occur atomically, and it does no
 
 \subsubsection{API-Level Relations}\label{subsubsec:api_relations}
 
-Section~\ref{subsubsec:api_observable} details how operations trigger memory accesses, but it does not define how the ordering of these accesses are constrained in an execution. This section defines a set of API-level relations between normal memory accesses, API operations, and observable accesses issued by these operations. These new relations are used to extend the relations and axioms that constrain program behavior in Section~\ref{subsubsec:api_integrate}.
+Section~\ref{subsubsec:api_observable} details how operations trigger observable memory accesses, but it does not define how the ordering of these accesses are constrained in an execution. This section defines a set of API-level relations between normal memory accesses, API operations, and observable accesses issued by these operations.
+In the same way that the PL-level \relHB{} relation is used to constrain ordering between normal memory accesses, these new API relations establish similar ordering constraints between normal memory accesses and observable accesses, and between observable accesses and other observable accesses.
+Table~\ref{table:api_relations} summarizes what types of accesses that each API-level relation may connect, and which \openshmem operations may establish it.
+In Section~\ref{subsubsec:api_integrate}, these new relations are then used to extend the definition of \relHB{} and \relDR{} for the API memory model.
 
-
+\normalsize
+\begin{longtable}{|l|>{\centering\arraybackslash}p{0.20\textwidth}|>{\centering\arraybackslash}p{0.22\textwidth}|p{0.38\textwidth}|}
+\hline
+\textbf{API Relation} & \textbf{Normal $\leftrightarrow$ Observable} & \textbf{Observable $\leftrightarrow$ Observable} & \textbf{Established by:}
+\tabularnewline\hline
+\endhead
+\relILV{} & X &   & All \openshmem operations \tabularnewline\hline
+\relLCO{} & X &   & Blocking \openshmem operations \tabularnewline\hline
+\relRDO{} & X & X & Fence operations \tabularnewline\hline
+\relRCO{} & X & X & Quiet and barrier operations \tabularnewline\hline
+\relASW{} &   & X & \ac{AMO}, signaling, point-to-point synchronization, and distributed locking operations \tabularnewline\hline
+\TableCaptionRef{API-level ordering relations, access type pairs connected, and establishing operations.}\label{table:api_relations}
+\end{longtable}
 
 \textbf{Implicit Local Visibility (ilv)}:
 \relILV{} relates local observable accesses from any \openshmem operation and prior hb-ordered memory accesses from the initiating \ac{PE}. This ensures, for example, that a \PUT{} operation will load an up-to-date version of data from the source buffer. Specifically, $(A, B) \in ilv$ only if all of the following are true:
