@@ -101,22 +101,22 @@ This does not mean the observable accesses must occur atomically, and it does no
 
 \subsubsection{API-Level Relations}\label{subsubsec:api_relations}
 
-Section~\ref{subsubsec:api_observable} details how operations trigger observable memory accesses, but it does not define how the ordering of these accesses are constrained in an execution. This section defines a set of API-level relations between normal memory accesses, API operations, and observable accesses issued by these operations.
-In the same way that the PL-level \relHB{} relation is used to constrain ordering between normal memory accesses, these new API relations establish similar ordering constraints between normal memory accesses and observable accesses, and between observable accesses and other observable accesses.
-Table~\ref{table:api_relations} summarizes what types of accesses that each API-level relation may connect, and which \openshmem operations may establish it.
-In Section~\ref{subsubsec:api_integrate}, these new relations are then used to extend the definition of \relHB{} and \relDR{} for the API memory model.
+Section~\ref{subsubsec:api_observable} details how operations trigger observable memory accesses, but it does not define how the ordering of these accesses are constrained in an execution. To formalize ordering constraints on \openshmem operation behavior, this section defines a set of new API-level ordering relations.
+In the same way that PL-level relations (\relSB{}, \relSW{}, \relHB{}) are defined to constrain ordering between normal memory accesses, these new API relations establish ordering constraints between normal memory accesses, operations, and observable accesses from those operations.
+Table~\ref{table:api_relations} summarizes what types of accesses each API-level relation may connect, and which \openshmem operations may establish it.
+In Section~\ref{subsubsec:api_integrate}, these new API relations are then used to extend the definition of \relHB{} and \relDR{}, formally constraining memory ordering at the API level.
 
 \normalsize
 \begin{longtable}{|l|>{\centering\arraybackslash}p{0.20\textwidth}|>{\centering\arraybackslash}p{0.22\textwidth}|p{0.38\textwidth}|}
 \hline
-\textbf{API Relation} & \textbf{Normal $\leftrightarrow$ Observable} & \textbf{Observable $\leftrightarrow$ Observable} & \textbf{Established by:}
+\textbf{API Relation} & \textbf{Normal $\leftrightarrow$ Normal} & \textbf{Normal $\leftrightarrow$ Observable} & \textbf{Observable $\leftrightarrow$ Observable} & \textbf{Established by:}
 \tabularnewline\hline
 \endhead
-\relILV{} & X &   & All \openshmem operations \tabularnewline\hline
-\relLCO{} & X &   & Blocking \openshmem operations \tabularnewline\hline
-\relRDO{} & X & X & Fence operations \tabularnewline\hline
-\relRCO{} & X & X & Quiet and barrier operations \tabularnewline\hline
-\relASW{} &   & X & \ac{AMO}, signaling, point-to-point synchronization, and distributed locking operations \tabularnewline\hline
+\relILV{} &   & X &   & All \openshmem operations \tabularnewline\hline
+\relLCO{} &   & X &   & Blocking \openshmem operations \tabularnewline\hline
+\relRDO{} &   & X & X & Fence operations \tabularnewline\hline
+\relRCO{} & X & X & X & Quiet and barrier operations \tabularnewline\hline
+\relASW{} &   &   & X & \ac{AMO}, signaling, point-to-point synchronization, and distributed locking operations \tabularnewline\hline
 \TableCaptionRef{API-level ordering relations, access type pairs connected, and establishing operations.}\label{table:api_relations}
 \end{longtable}
 
@@ -136,7 +136,9 @@ In Section~\ref{subsubsec:api_integrate}, these new relations are then used to e
 \end{itemize}
 
 \textbf{Remote Delivery Order (rdo)}:
-\relRDO{} relates accesses separated by an \openshmem fence operation. However, this relation does not establish full connectivity; it only forms a connection between observable accesses to the same \ac{PE} from operations \relHB{} ordered before and after the fence, and between \relHB{} ordered accesses before a fence and observable accesses from operations \relHB{} ordered after a fence. Specifically, $(A, B) \in rdo$ only if there is an \openshmem fence operation $Fop$ and any of the following conditions are true:
+\relRDO{} relates accesses and operations separated by an \openshmem fence operation. However, this relation only establishes a partial and asymmetric connectivity; it only connects observable accesses to the same \ac{PE} from operations \relHB{} ordered before and after the fence, and between \relHB{} ordered normal accesses before a fence and observable accesses from operations \relHB{} ordered after a fence. 
+Note that normal accesses are not impacted by \relRDO{} if they are not \relHB{} ordered before the fence, and observable accesses that target different \acp{PE} are not connected by \relRDO{}.
+Specifically, $(A, B) \in rdo$ only if there is an \openshmem fence operation $Fop$ and any of the following conditions are true:
 \begin{itemize}
     \item $A$ is a memory access that is \relHB{} ordered before $Fop$, $B$ is an observable access issued by an operation that is \relHB{} ordered after $Fop$, and the context associated with $Fop$ does NOT have the \CONST{SHMEM\_CTX\_NOSTORE} option enabled.
     \item $A$ is an observable access issued by a fence-ordered operation (defined below) that is \relHB{} ordered before $Fop$, $B$ is an observable access issued by an operation that is \relHB{} ordered after $Fop$, and $A$ and $B$ target the same \ac{PE}.
