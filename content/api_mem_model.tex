@@ -73,7 +73,7 @@ For the purposes of the API memory model, each \openshmem operation type defines
 Observable accesses have the same semantics as normal accesses and take part in the same relations, with two exceptions: 
 \begin{enumerate}
   \item There is no \relSB{} relationship between observable accesses issued by an API operation and any other event in the thread that initiated the operation. Instead, Section~\ref{subsubsec:api_relations} defines the relations that constrain ordering at the API level. Note, however, that the operation event that issues these observable accesses \textit{does} form a \relSB{} relationship with other events issued by the initiating thread.
-  \item There are no synchronization semantics (atomic, acquire/release ordering) associated with observable accesses. Although the accesses may be lowered to PL-level accesses with these semantics, at the API level, ordering relations and data race conditions are defined a the level of the operation that issues them (see Sections~\ref{subsubsec:api_relations} and~\ref{subsubsec:api_integration}, respectively.)
+  \item There are no synchronization semantics (atomic, acquire/release ordering) associated with observable accesses. Although the accesses may be lowered to PL-level accesses with these semantics, at the API level, ordering relations and data race conditions are defined a the level of the operation that issues them (see Sections~\ref{subsubsec:api_relations} and~\ref{subsubsec:api_integrate}, respectively.)
 \end{enumerate}
 %In addition, accesses performed by an implementation that are not included in the observable set must not modify data that may be observed from application code external to \openshmem operation implementations. 
 
@@ -107,7 +107,7 @@ Table~\ref{table:api_relations} summarizes what types of accesses each API-level
 In Section~\ref{subsubsec:api_integrate}, these new API relations are then used to extend the definition of \relHB{} and \relDR{}, formally constraining memory ordering at the API level.
 
 \normalsize
-\begin{longtable}{|l|>{\centering\arraybackslash}p{0.20\textwidth}|>{\centering\arraybackslash}p{0.22\textwidth}|p{0.38\textwidth}|}
+\begin{longtable}{|p{0.18\textwidth}|>{\centering\arraybackslash}p{0.12\textwidth}|>{\centering\arraybackslash}p{0.12\textwidth}|>{\centering\arraybackslash}p{0.14\textwidth}|p{0.29\textwidth}|}
 \hline
 \textbf{API Relation} & \textbf{Normal $\leftrightarrow$ Normal} & \textbf{Normal $\leftrightarrow$ Observable} & \textbf{Observable $\leftrightarrow$ Observable} & \textbf{Established by:}
 \tabularnewline\hline
@@ -136,7 +136,7 @@ In Section~\ref{subsubsec:api_integrate}, these new API relations are then used 
 \end{itemize}
 
 \textbf{Remote Delivery Order (rdo)}:
-\relRDO{} relates accesses and operations separated by an \openshmem fence operation. However, this relation only establishes a partial and asymmetric connectivity; it only connects observable accesses to the same \ac{PE} from operations \relHB{} ordered before and after the fence, and between \relHB{} ordered normal accesses before a fence and observable accesses from operations \relHB{} ordered after a fence. 
+\relRDO{} relates accesses and operations separated by an \openshmem fence operation. However, this relation only establishes a partial and asymmetric connectivity; it only connects 1) observable accesses to the same \ac{PE} from operations \relHB{} ordered before and after the fence, and 2) normal accesses \relHB{} ordered before a fence and observable accesses from operations \relHB{} ordered after a fence. 
 Note that normal accesses are not impacted by \relRDO{} if they are not \relHB{} ordered before the fence, and observable accesses that target different \acp{PE} are not connected by \relRDO{}.
 Specifically, $(A, B) \in rdo$ only if there is an \openshmem fence operation $Fop$ and any of the following conditions are true:
 \begin{itemize}

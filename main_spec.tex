@@ -434,11 +434,11 @@ affected by \openshmem memory ordering routines.
 \begin{longtable}{|l|c|c|}
  \hline
   Operations & Fence & Quiet \\ \hline
-  Memory Store \footnote{Ordering and/or delivery of memory store operations are
+  Memory Store \footnote{Ordering and/or delivery of prior memory accesses are
   ensured only on contexts created with certain options. For details, refer the
-  description of context options in Section~\ref{subsec:shmem_ctx_create}.}
+	description of context options in Section~\ref{subsec:shmem_ctx_create}\label{fnst}.}
                                      & X & X \\
-  Memory Load                        & X & X \\
+  Memory Load \footref{fnst}         & X & X \\
   Blocking \OPR{Put}                 & X & X \\
   Blocking \OPR{Get}                 &   &   \\
   Blocking \OPR{\acs{AMO}}           & X & X \\
