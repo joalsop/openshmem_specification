@@ -32,7 +32,7 @@ Although the axiomatic model places no requirements on when each event must upda
 \begin{itemize}
     \item $acyclic(hb)$: \relHB{} cannot have any cycles.
     \item $irreflexive(rf;hb)$: \relHB{} must be consistent with the \relRF{} relation.
-    \item $irreflexive((rf^{-1})^{?};mo;rf^?;hb)$: \relHB{} must be consistent with \relMO{} between writes, as well as any reads that read from writes in \relMO{} (often called coherence requirement).
+    \item $irreflexive((rf^{-1})^{?};mo;rf^?;hb)$: \relHB{} must be consistent with \relMO{} between writes, and it must also be consistent with the order of reads that read from writes in \relMO{} (often called coherence requirement).
     \item $irreflexive(rf \cup (mo;mo;rf^{-1}) \cup (mo;rf))$: The read of an atomic read-modify-write access must always read the last value (in \relMO{}) written before the write of the read-modify-write access (often called RMW atomicity).
 \end{itemize}
 
@@ -63,17 +63,17 @@ After defining how \openshmem extends the C11 memory model, Section~\ref{subsubs
 
 \subsubsection{PEs and Operation Events}\label{subsubsec:api_pes_operations}
 
-When defining behavior at the \openshmem API level, there are two key differences in program representation relative to a PL-level program. First, \openshmem applications span multiple \acp{PE}, each of which has its own local memory space. Therefore, the PL-level definition of memory location is extended to include both the \ac{PE}-local memory address and the \ac{PE} ID. Normal memory accesses can access memory locations on the local \ac{PE}, or on a remote \ac{PE} if \FUNC{shmem\_ptr} is used. \openshmem operations may trigger accesses to the local \ac{PE}’s memory and/or the memory of remote \acp{PE}. Dynamic memory accesses in an execution are only considered to access the same memory location if both the local memory address and \ac{PE} ID attributes match (impacting the definitions of of \relMO{} and \relRF{}).
+When defining behavior at the \openshmem API level, there are two key differences in program representation relative to a PL-level program. First, \openshmem applications span multiple \acp{PE}, each of which has its own local memory space. Therefore, the PL-level definition of memory location is extended to include both the \ac{PE}-local memory address and the \ac{PE} ID. PL-level load, store, and RMW accesses (referred to here as "normal" memory accesses, to differentiate from operation-generated observable accesses) can access memory locations on the local \ac{PE}, or on a remote \ac{PE} if \FUNC{shmem\_ptr} is used. \openshmem operations may trigger accesses to the local \ac{PE}’s memory and/or the memory of remote \acp{PE}. Dynamic memory accesses in an execution are only considered to access the same memory location if both the local memory address and \ac{PE} ID attributes match (impacting the definitions of \relMO{} and \relRF{}).
 
 Second, since the \openshmem API does not define the underlying PL-level implementation, API operations do not resolve to a function consisting of PL-level events. Thus, these operations must be treated as a new type of primitive in the API-level memory model: the operation event. An operation event specifies its type, and each type defines the set of minimum observable accesses triggered by the operation (described next). Operation events participate in \relSB{} and derived relations, similar to normal thread access events. Although operation events may be associated with separate memory access events (see Section~\ref{subsubsec:api_observable}), the operation events themselves do not participate directly in access-based relations like \relMO{}, \relRF{}, and \relSW{}.
 
 \subsubsection{Per-Operation Observable Accesses}\label{subsubsec:api_observable}
 
-For the purposes of the API memory model, each \openshmem operation type defines the minimum set of observable memory accesses performed by the operation. These accesses are considered to be ``issued'' by the associated operation. These accesses must occur as part of the operation, however the API-level model places no constraints on the thread that executes observable accesses (i.e., they may or may not be executed by the initiating thread), and it does not prevent an implementation from performing other accesses (e.g., for implementation-internal synchronization, buffering, etc. -- although data accessed in this way should never be accessed by code external to the implementation).
+For the purposes of the API memory model, each \openshmem operation type defines the minimum set of observable memory accesses performed by the operation. These accesses are considered to be ``issued'' by the associated operation. These accesses must occur as part of the operation, however the API-level model places no constraints on the thread that executes observable accesses (i.e., they may or may not be executed by the initiating thread), and it does not prevent an implementation from performing other accesses (e.g., for implementation-internal synchronization, buffering, etc. -- although data accessed in this way must not be accessed by code external to the implementation).
 Observable accesses have the same semantics as normal accesses and take part in the same relations, with two exceptions: 
 \begin{enumerate}
   \item There is no \relSB{} relationship between observable accesses issued by an API operation and any other event in the thread that initiated the operation. Instead, Section~\ref{subsubsec:api_relations} defines the relations that constrain ordering at the API level. Note, however, that the operation event that issues these observable accesses \textit{does} form a \relSB{} relationship with other events issued by the initiating thread.
-  \item There are no synchronization semantics (atomic, acquire/release ordering) associated with observable accesses. Although the accesses may be lowered to PL-level accesses with these semantics, at the API level, ordering relations and data race conditions are defined a the level of the operation that issues them (see Sections~\ref{subsubsec:api_relations} and~\ref{subsubsec:api_integrate}, respectively).
+  \item There are no synchronization semantics (atomic, acquire/release ordering) associated with observable accesses. Although the accesses may be lowered to PL-level accesses with these semantics, at the API level, ordering relations and data race conditions are defined at the level of the operation that issues them (see Sections~\ref{subsubsec:api_relations} and~\ref{subsubsec:api_integrate}, respectively).
 \end{enumerate}
 %In addition, accesses performed by an implementation that are not included in the observable set must not modify data that may be observed from application code external to \openshmem operation implementations. 
 
@@ -84,7 +84,7 @@ Specifically, $(A, B) \in sb$ only if $A$ and $B$ are observable accesses issued
     \begin{itemize}
         \item $B$ takes a value derived from $A$ as an operand.
         \item $B$ has a control dependency on the result of $A$ such that $A$'s evaluation determines whether $B$ will occur.
-	\item $B$ has an ordering dependency $A$. This type of dependency currently exists only in blocking and non-blocking \emph{put-with-signal} operations where the final store to $sig\_addr$ is ordered after all prior observable accesses to source and dest.
+	\item $B$ has an ordering dependency on $A$. This type of dependency currently exists only in blocking and non-blocking \emph{put-with-signal} operations where the final store to $sig\_addr$ is ordered after all prior observable accesses to source and dest.
     \end{itemize} 
 Many operations have no visible accesses (e.g., memory ordering routines, whose semantics are defined by the API-level relations described in Section~\ref{subsubsec:api_relations}). 
 In addition, synchronization semantics for observable accesses in the API model are defined at a higher level than in the PL model. Rather than associating atomic semantics and acquire/release ordering for each observable accesses that may be involved in synchronization, we instead associate semantics at the level of the issuing operation (see API Synchronizes-With in \ref{subsubsec:api_relations}).
@@ -160,8 +160,8 @@ In the above, "qb-ordered operations" are defined as blocking or nonblocking \PU
 \textbf{API Synchronizes-With (asw)}:
 \relASW{} is the API-level analog of the PL-level \relSW{} relation. It relates observable accesses from legally synchronizing \openshmem operations that form a \relRF{} relationship. Specifically, $(A, B) \in asw$ only if $(A, B) \in rf$ and any of the following are true:
 \begin{itemize}
-    \item $A$ is an observable read or read-modify-write access issued by a synchronizing \openshmem operation.
-    \item $B$ is an observable write or read-modify-write access issued by a synchronizing \openshmem operation.
+    \item $A$ is an observable write or read-modify-write access issued by a synchronizing \openshmem operation.
+    \item $B$ is an observable read or read-modify-write access issued by a synchronizing \openshmem operation.
 \end{itemize}
 
 In the above, "synchronizing \openshmem operations" are defined as any operation from the following categories: \ac{AMO}s, signaling operations, point-to-point synchronization routines, or distributed locking routines.
@@ -210,8 +210,7 @@ The following axioms are similarly updated to use \relAHB{} rather than \relHB{}
     \item $irreflexive(rf;api\_hb)$: \relAHB{} must be consistent with the \relRF{} relation.
     \item $irreflexive((rf^{-1})^{?};mo;rf^?;api\_hb)$: \relAHB{} must be consistent with \relMO{} between writes, and it must also be consistent with the order of reads that read from writes in \relMO{} (often called coherence requirement).
     \item $irreflexive(rf \cup (mo;mo;rf^{-1}) \cup (mo;rf))$: The read of an atomic read-modify-write access must always read the last value (in \relMO{}) written before the write of the read-modify-write access (often called RMW atomicity).
-    \item $irreflexive(rf;sb^{amo\_op} \cup (mo;mo;(sb^{amo\_op})^{-1};rf^{-1}) \cup (mo;rf))$: The observable read of an \openshmem \ac{AMO} must always read the last value (in \relMO{}) written before the observable write of the \ac{AMO} (this is the \ac{AMO} analog of the PL-level RMW atomicity axiom). In this axiom, $sb^{amo\_op}$ is defined as the $sb$ relation between the observable read and write accesses issued by an \ac{AMO}.
-    \item $irreflexive(rf \cup (mo;mo;rf^{-1}) \cup (mo;rf))$: The read of an atomic read-modify-write access must always read the last value (in \relMO{}) written before the write of the read-modify-write access.
+    \item $irreflexive(rf;sb^{amo\_op} \cup (mo;mo;(sb^{amo\_op})^{-1};rf^{-1}) \cup (sb^{amo\_op};mo;rf))$: The observable read of an \openshmem \ac{AMO} must always read the last value (in \relMO{}) written before the observable write of the \ac{AMO} (this is the \ac{AMO} analog of the PL-level RMW atomicity axiom). In this axiom, $sb^{amo\_op}$ is defined as the $sb$ relation between the observable read and write accesses issued by an \ac{AMO}.
 \end{itemize}
 
 Finally, similar to the C11 memory model, if an \relADR{} exists in a candidate execution that satisfies the above axioms, then the behavior is undefined. If an \relADR{} does not exist, then the behavior must conform to one of the axiom-satisfying candidate executions.
