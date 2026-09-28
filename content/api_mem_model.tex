@@ -54,7 +54,7 @@ To describe the desired \openshmem behavior, the API-level memory model makes th
 \begin{enumerate}
 	\item\label{mcmsteps:one} \textbf{\acp{PE} and operation events}: Section~\ref{subsubsec:api_pes_operations} introduces a new event type that corresponds to an API operation and a new memory location property that specifies the target \ac{PE}. This provides a basis for operation-level semantics across multiple \ac{PE} memories.
 	\item\label{mcmsteps:two} \textbf{Per-operation observable accesses}: For each operation type, Section~\ref{subsubsec:api_observable} defines a set of observable memory accesses (these are not related to the initiating thread by \relSB{}). This enables asynchrony since a thread can continue execution while observable accesses execute in the background.
-	\item\label{mcmsteps:four} \textbf{Fused collectives}: Section~\ref{subsubsec:api_fused} fuses matched collective operation calls into a single event. This supports multi-PE collective operations and establishes ordering across \acp{PE} even when there are no observable accesses.
+	\item\label{mcmsteps:four} \textbf{Coalesced collectives}: Section~\ref{subsubsec:api_fused} coalesces matched collective operation calls into a single event. This supports multi-PE collective operations and establishes ordering across \acp{PE} even when there are no observable accesses.
 	\item\label{mcmsteps:three} \textbf{API-level relations}: Section~\ref{subsubsec:api_relations} defines new API-level ordering relations over operation events and their observable accesses that will constrain \openshmem memory ordering. This allows the programmer to explicitly enforce ordering of asynchronous operations using the ordering and synchronization operations provided by \openshmem. These relations are illustrated in Section~\ref{subsubsec:api_relations_example}.
 	\item\label{mcmsteps:five} \textbf{Updated relations, axioms}: Section~\ref{subsubsec:api_integrate} updates the PL-level memory model axioms to incorporate these new events and relations. By extending existing relations and axioms (e.g., \relHB{}, data races) for the API level, we establish a memory model that formalizes \openshmem ordering requirements.
 \end{enumerate}
@@ -77,7 +77,8 @@ The \ac{PE} ID of a PL-level load, store, or RMW access (referred to going forwa
 For the purposes of the API memory model, each \openshmem operation type defines the minimum set of observable memory accesses performed by the operation. These accesses are considered to be ``issued'' by the associated operation. These accesses must occur as part of the operation, however the API-level model places no constraints on the thread that executes observable accesses (i.e., they may or may not be executed by the initiating thread), and it does not prevent an implementation from performing other accesses (e.g., for implementation-internal synchronization, buffering, etc. -- although data accessed in this way must not be accessed by code external to the implementation).
 Observable accesses have the same semantics as normal accesses and take part in the same relations, with two exceptions: 
 \begin{enumerate}
-  \item There is no \relSB{} relationship between a thread calling an \openshmem operation and any observable accesses issued by that operation. Instead, Section~\ref{subsubsec:api_relations} defines the relations that constrain observable access ordering at the API level.
+  \item There is no \relSB{} ordering between a thread calling an \openshmem operation and any observable accesses issued by that operation.\footnote{Although the operation event itself is \relSB{} ordered with events in the calling thread, this does not imply anything about observable access completion order by itself, and is instead used to anchor and define API-level relations that order observable accesses (defined in Section~\ref{subsubsec:api_relations}).}
+  Instead, Section~\ref{subsubsec:api_relations} defines the relations that constrain observable access ordering at the API level.
   \item There are no synchronization semantics (atomic, acquire/release ordering) associated with observable accesses. Although the accesses may be lowered to PL-level accesses with these semantics, at the API level, ordering relations and data race conditions are defined at the level of the operation that issues them (see Sections~\ref{subsubsec:api_relations} and~\ref{subsubsec:api_integrate}, respectively).
 \end{enumerate}
 %In addition, accesses performed by an implementation that are not included in the observable set must not modify data that may be observed from application code external to \openshmem operation implementations. 
@@ -96,12 +97,12 @@ In addition, synchronization semantics for observable accesses in the API model 
 
 \input{content/api_observable}
 
-\subsubsection{Fused Collectives}\label{subsubsec:api_fused}
+\subsubsection{Coalesced Collectives}\label{subsubsec:api_fused}
 
 \openshmem defines multiple collective operations that synchronize across multiple \acp{PE} in a team, in some cases without any observable accesses to memory (e.g., as is the case with barrier). 
 There are multiple requirements on the use of these operations. In particular, each dynamic call to a collective operation must be paired with a matching call from every other \ac{PE} in the team.
-The API-level memory model fuses these matching calls into a single event in the candidate execution. 
-This fused operation and the associated observable accesses (if any) are considered to be executed collectively by all nodes in the synchronizing set of \acp{PE}, allowing us to establish ordering relations across these \acp{PE} (defined in Section~\ref{subsubsec:api_relations}).
+The API-level memory model coalesces these matching calls into a single event in the candidate execution.
+This coalesced operation and the associated observable accesses (if any) are considered to be executed collectively by all nodes in the synchronizing set of \acp{PE}, allowing us to establish ordering relations across these \acp{PE} (defined in Section~\ref{subsubsec:api_relations}).
 This does not mean the observable accesses must occur atomically, and it does not constrain how the operation is implemented (i.e., any thread or \ac{PE} in the team may perform each observable access).
 
 \subsubsection{API-Level Relations}\label{subsubsec:api_relations}
@@ -176,18 +177,18 @@ In the above, "synchronizing \openshmem operations" are defined as any operation
 \begin{figure}[h]
 \includegraphics[width=0.75\textwidth]{figures/api_relations}
 \centering
-\caption{Example \openshmem code execution depicting observable accesses, example API-level relations, and a fused barrier collective operation event.}
+\caption{Example \openshmem code execution depicting observable accesses, example API-level relations, and a coalesced barrier collective operation event.}
 \label{fig:api_execution}
 \end{figure}
 
 Figure~\ref{fig:api_execution} illustrates how the above concepts are applied in an example \openshmem code execution. \openshmem operations are denoted by rounded boxes, and their observable accesses are shown in dotted square boxes. 
-Matched barrier calls from each \ac{PE} are fused into a single operation event.
+Matched barrier calls from each \ac{PE} are coalesced into a single operation event.
 Operations are ordered within the calling thread by \relSB{}, but their observable accesses are constrained only by the added API relations, described below (in addition to \relSB{} orderings within the operation): 
 \begin{itemize}
 \item \relILV{} orders the store of $a$ in PE0 (and all prior \relHB{}-ordered accesses) with the load of $a$ from the \PUT{} operation.
 \item \relLCO{} orders the load of $a$ in PE1 (and all subsequent hb-ordered accesses) with the load of $b$ from the (blocking) \FUNC{wait\_until} operation.
 \item \relRDO{} orders the bulk store of $a$ from the \PUT{} operation in PE0 with the store of $b$ from the fence-separated \FUNC{atomic\_set} operation.
-\item \relRCO{} orders all \relHB{} ordered accesses and the accesses of \relHB{} ordered \openshmem operations before and after the fused barrier event spanning PE0 and PE1.
+\item \relRCO{} orders all \relHB{} ordered accesses and the accesses of \relHB{} ordered \openshmem operations before and after the coalesced barrier event spanning PE0 and PE1.
 \item \relASW{} orders the store of $b$ from the \FUNC{atomic\_set} operation in PE0 with the consuming (\relRF{} related) load of $b$ from the \FUNC{wait\_until} operation in PE1.
 \end{itemize}
 Note that~\ref{fig:api_execution} depicts only a representative sample of API relations, since an exhaustive depiction would be cluttered.
