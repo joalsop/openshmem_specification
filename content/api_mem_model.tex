@@ -164,7 +164,7 @@ In the above, "fence-ordered operations" are defined as blocking or nonblocking 
 In the above, "qb-ordered operations" are defined as blocking or nonblocking \PUT{}, nonblocking \GET{}, blocking or nonblocking \ac{AMO}, and blocking or nonblocking \emph{put-with-signal} operations.
 
 \textbf{API Synchronizes-With (asw)}:
-\relASW{} is the API-level analog of the PL-level \relSW{} relation. It relates observable accesses from legally synchronizing \openshmem operations that form a \relRF{} relationship. Specifically, $(A, B) \in asw$ only if $(A, B) \in rf$ and any of the following are true:
+\relASW{} is the API-level analog of the PL-level \relSW{} relation. It relates observable accesses from legally synchronizing \openshmem operations that form a \relRF{} relationship. Specifically, $(A, B) \in asw$ only if $(A, B) \in rf$ and all of the following are true:
 \begin{itemize}
     \item $A$ is an observable write or read-modify-write access issued by a synchronizing \openshmem operation.
     \item $B$ is an observable read or read-modify-write access issued by a synchronizing \openshmem operation.
