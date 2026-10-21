@@ -146,7 +146,7 @@ In Section~\ref{subsubsec:api_integrate}, these new API relations are then used 
 Note that normal accesses are not impacted by \relRDO{} if they are not \relHB{} ordered before the fence, and observable accesses that target different \acp{PE} are not connected by \relRDO{}.
 Specifically, $(A, B) \in rdo$ only if there is an \openshmem fence operation $Fop$ and any of the following conditions are true:
 \begin{itemize}
-    \item $A$ is a memory access that is \relHB{} ordered before $Fop$, $B$ is an observable access issued by an operation that is \relHB{} ordered after $Fop$, and the context associated with $Fop$ does NOT have the \CONST{SHMEM\_CTX\_NOSTORE} option enabled.
+    \item $A$ is a memory access that is \relHB{} ordered before $Fop$, $B$ is an observable access issued by an operation that is \relHB{} ordered after $Fop$, and the context associated with $Fop$ does NOT have the \CONST{SHMEM\_CTX\_RELAX\_FENCE} option enabled.
     \item $A$ is an observable access issued by a fence-ordered operation (defined below) that is \relHB{} ordered before $Fop$, $B$ is an observable access issued by an operation that is \relHB{} ordered after $Fop$, and $A$ and $B$ target the same \ac{PE}.
 \end{itemize}
 
@@ -155,8 +155,8 @@ In the above, "fence-ordered operations" are defined as blocking or nonblocking 
 \textbf{Remote Completion Order (rco)}:
 \relRCO{} establishes full connectivity between accesses separated by an \openshmem quiet or barrier operation. All thread accesses or observable accesses that are \relHB{} ordered before the quiet or barrier operation are ordered before all thread accesses or observable accesses that are \relHB{} ordered after the quiet or barrier operation. Specifically, $(A, B) \in rco$ only if there is an \openshmem quiet or barrier operation $QBop$ and any of the following conditions are true:
 \begin{itemize}
-    \item $A$ is a memory access that is \relHB{} ordered before $QBop$, $B$ is an access that is \relHB{} ordered after $QBop$, and the context associated with $QBop$ does NOT have the \CONST{SHMEM\_CTX\_NOSTORE} option enabled.
-    \item $A$ is a memory access that is \relHB{} ordered before $QBop$, $B$ is an observable access issued by an operation that is \relHB{} ordered after $QBop$, and the context associated with $QBop$ does NOT have the \CONST{SHMEM\_CTX\_NOSTORE} option enabled.
+    \item $A$ is a memory access that is \relHB{} ordered before $QBop$, $B$ is an access that is \relHB{} ordered after $QBop$, and the context associated with $QBop$ does NOT have the \CONST{SHMEM\_CTX\_RELAX\_FENCE} option enabled.
+    \item $A$ is a memory access that is \relHB{} ordered before $QBop$, $B$ is an observable access issued by an operation that is \relHB{} ordered after $QBop$, and the context associated with $QBop$ does NOT have the \CONST{SHMEM\_CTX\_RELAX\_FENCE} option enabled.
     \item $A$ is an observable access issued by an operation that is \relHB{} ordered before $QBop$ and $B$ is an access that is \relHB{} ordered after $QBop$.
     \item $A$ is an observable memory access issued by a qb-ordered operation (defined below) that is \relHB{} ordered before $QBop$ and $B$ is an observable access issued by an operation that is \relHB{} ordered after $QBop$.
 \end{itemize}
